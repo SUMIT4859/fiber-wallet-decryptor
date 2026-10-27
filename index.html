@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fiber Wallet Keystore Decryptor | 100% Client-Side</title>
+  <!-- Content Security Policy: Absolutely no external connections or data transmission -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'; frame-ancestors 'none';">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f293d;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --mono-font: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 680px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .shield-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      padding: 0.4rem 0.9rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 1rem;
+    }
+
+    .shield-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #34d399;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #34d399;
+    }
+
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.75rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      margin-bottom: 1.5rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed #374151;
+      border-radius: 10px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      background: rgba(17, 24, 39, 0.4);
+      transition: all 0.2s ease;
+      margin-bottom: 1.25rem;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .drop-zone input[type="file"] {
+      display: none;
+    }
+
+    .drop-icon {
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+      color: var(--accent);
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      margin: 1.25rem 0;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .divider span {
+      padding: 0 0.75rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+      color: #e5e7eb;
+    }
+
+    textarea, input[type="password"], input[type="text"] {
+      width: 100%;
+      background: #0b0f19;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    textarea:focus, input[type="password"]:focus, input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    textarea {
+      font-family: var(--mono-font);
+      font-size: 0.82rem;
+      resize: vertical;
+      min-height: 110px;
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .password-wrapper {
+      position: relative;
+    }
+
+    .toggle-pwd {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 4px;
+    }
+
+    .btn-decrypt {
+      width: 100%;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.9rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background-color 0.2s ease;
+    }
+
+    .btn-decrypt:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-decrypt:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .status-msg {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      display: none;
+    }
+
+    .status-msg.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    .status-msg.loading {
+      display: block;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #93c5fd;
+    }
+
+    .result-section {
+      display: none;
+      margin-top: 1.5rem;
+      border-top: 1px solid var(--card-border);
+      padding-top: 1.5rem;
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .result-title {
+      font-weight: 600;
+      color: #34d399;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .result-box {
+      background: #050811;
+      border: 1px solid #10b981;
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: var(--mono-font);
+      font-size: 0.95rem;
+      word-break: break-all;
+      color: #f9fafb;
+      user-select: all;
+      margin-bottom: 1rem;
+      line-height: 1.6;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn-action {
+      flex: 1;
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 0.875rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .btn-copy {
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: var(--text-main);
+    }
+
+    .btn-copy:hover {
+      background: #374151;
+    }
+
+    .btn-destroy {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #f87171;
+    }
+
+    .btn-destroy:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .security-guarantees {
+      background: rgba(31, 41, 55, 0.4);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .security-guarantees h3 {
+      font-size: 0.95rem;
+      color: #e5e7eb;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .security-guarantees ul {
+      list-style-type: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .security-guarantees li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .security-guarantees li::before {
+      content: '✓';
+      color: #10b981;
+      font-weight: bold;
+    }
+
+    .spinner {
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 2px solid #ffffff;
+      width: 16px;
+      height: 16px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .author-footer {
+      text-align: center;
+      margin-top: 2rem;
+      padding: 1.25rem 0 0.5rem 0;
+      border-top: 1px solid var(--card-border);
+      font-size: 0.92rem;
+      color: var(--text-muted);
+    }
+
+    .author-footer a {
+      color: #38bdf8;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .author-footer a:hover {
+      color: #7dd3fc;
+      text-decoration: underline;
+    }
+
+    .author-name {
+      color: #f9fafb;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="shield-badge">
+        <span class="shield-dot"></span>
+        <span>100% In-Memory RAM • Zero Network Calls</span>
+      </div>
+      <h1>Fiber Wallet Decryptor</h1>
+      <p class="subtitle">Extract your seed phrase or private key from your encrypted backup JSON directly in your browser. Nothing is ever saved or transmitted.</p>
+    </header>
+
+    <div class="card">
+      <!-- Drag & Drop Zone -->
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">📁</div>
+        <p><strong>Click to choose file</strong> or drag & drop backup JSON here</p>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">(fiber-wallet-backup-*.json)</span>
+        <input type="file" id="fileInput" accept=".json,application/json,text/plain">
+      </div>
+
+      <div class="divider">
+        <span>OR PASTE JSON CODE</span>
+      </div>
+
+      <!-- JSON Text Area -->
+      <div class="form-group">
+        <label for="jsonInput">Encrypted Backup JSON</label>
+        <textarea id="jsonInput" placeholder='{"format": "fiber-wallet-export", "version": 1, "kdf": {...}, "cipher": {...}}'></textarea>
+      </div>
+
+      <!-- Password Input -->
+      <div class="form-group">
+        <label for="passwordInput">Backup Password</label>
+        <div class="password-wrapper">
+          <input type="password" id="passwordInput" placeholder="Enter the password you created during export" autocomplete="new-password">
+          <button type="button" class="toggle-pwd" id="togglePwd">Show</button>
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <button class="btn-decrypt" id="decryptBtn">
+        <span id="btnText">Decrypt In-Memory</span>
+        <div class="spinner" id="btnSpinner" style="display: none;"></div>
+      </button>
+
+      <!-- Status/Error Message -->
+      <div class="status-msg" id="statusMsg"></div>
+
+      <!-- Decrypted Output Section -->
+      <div class="result-section" id="resultSection">
+        <div class="result-header">
+          <div class="result-title">
+            <span>🔓</span>
+            <span>Decrypted Wallet Key / Seed Phrase</span>
+          </div>
+          <span style="font-size: 0.8rem; color: #f59e0b;">Self-clears on tab close</span>
+        </div>
+        <div class="result-box" id="resultOutput"></div>
+        <div class="action-row">
+          <button class="btn-action btn-copy" id="copyBtn">
+            <span>📋 Copy to Clipboard</span>
+          </button>
+          <button class="btn-action btn-destroy" id="destroyBtn">
+            <span>🗑️ Destroy / Wipe Memory</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Guarantees -->
+    <div class="security-guarantees">
+      <h3>🛡️ Zero-Trace Guarantee</h3>
+      <ul>
+        <li><strong>No Network Transmission:</strong> Enforced by strict Content Security Policy (<code>connect-src 'none'</code>). You can even disconnect your internet before pressing decrypt!</li>
+        <li><strong>No Local Storage:</strong> Zero cookies, zero <code>localStorage</code>, zero <code>sessionStorage</code>, and zero IndexedDB usage.</li>
+        <li><strong>RAM-Only Decryption:</strong> Executed using standard <code>crypto.subtle</code> inside temporary browser memory.</li>
+        <li><strong>Auto-Destruction:</strong> Closing this window or clicking "Destroy / Wipe Memory" immediately purges all keys.</li>
+      </ul>
+    </div>
+
+    <!-- Author & Social Credit -->
+    <footer class="author-footer">
+      <p>Built by <span class="author-name">SR485970</span> • Follow on 𝕏: <a href="https://x.com/sumitxbt" target="_blank" rel="noopener noreferrer">@sumitxbt</a></p>
+    </footer>
+  </div>
+
+  <script>
+    // Elements
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const jsonInput = document.getElementById('jsonInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const togglePwd = document.getElementById('togglePwd');
+    const decryptBtn = document.getElementById('decryptBtn');
+    const btnText = document.getElementById('btnText');
+    const btnSpinner = document.getElementById('btnSpinner');
+    const statusMsg = document.getElementById('statusMsg');
+    const resultSection = document.getElementById('resultSection');
+    const resultOutput = document.getElementById('resultOutput');
+    const copyBtn = document.getElementById('copyBtn');
+    const destroyBtn = document.getElementById('destroyBtn');
+
+    // Toggle Password Visibility
+    togglePwd.addEventListener('click', () => {
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        togglePwd.textContent = 'Hide';
+      } else {
+        passwordInput.type = 'password';
+        togglePwd.textContent = 'Show';
+      }
+    });
+
+    // File Drag & Drop
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        handleFile(fileInput.files[0]);
+      }
+    });
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        jsonInput.value = e.target.result;
+        setStatus('Loaded file: ' + file.name, 'loading');
+        setTimeout(() => clearStatus(), 2000);
+      };
+      reader.readAsText(file);
+    }
+
+    function setStatus(text, type) {
+      statusMsg.textContent = text;
+      statusMsg.className = 'status-msg ' + type;
+    }
+
+    function clearStatus() {
+      statusMsg.textContent = '';
+      statusMsg.className = 'status-msg';
+    }
+
+    // Binary decoding helpers (Base64 / Base64URL / Hex)
+    function decodeToUint8Array(str) {
+      if (!str || typeof str !== 'string') return new Uint8Array();
+      str = str.trim();
+
+      // Check if Hex
+      if (/^[0-9a-fA-F]+$/.test(str) && str.length % 2 === 0) {
+        const bytes = new Uint8Array(str.length / 2);
+        for (let i = 0; i < str.length; i += 2) {
+          bytes[i / 2] = parseInt(str.substr(i, 2), 16);
+        }
+        return bytes;
+      }
+
+      // Convert Base64URL to standard Base64
+      let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4 !== 0) {
+        base64 += '=';
+      }
+
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    // Decrypt Action
+    decryptBtn.addEventListener('click', async () => {
+      clearStatus();
+      resultSection.style.display = 'none';
+      resultOutput.textContent = '';
+
+      const rawJson = jsonInput.value.trim();
+      const password = passwordInput.value;
+
+      if (!rawJson) {
+        setStatus('Please paste your JSON backup or select a file.', 'error');
+        return;
+      }
+      if (!password) {
+        setStatus('Please enter the backup password.', 'error');
+        return;
+      }
+
+      let backup;
+      try {
+        backup = JSON.parse(rawJson);
+      } catch (err) {
+        setStatus('Invalid JSON format. Please verify the copied file.', 'error');
+        return;
+      }
+
+      // Validate required fields
+      const kdf = backup.kdf || {};
+      const cipher = backup.cipher || {};
+      const saltStr = kdf.salt;
+      const iterations = kdf.iterations || 600000;
+      const nonceStr = cipher.nonce || cipher.iv;
+      const ciphertextStr = cipher.ciphertext;
+
+      if (!saltStr || !nonceStr || !ciphertextStr) {
+        setStatus('Missing required cryptographic fields (kdf.salt, cipher.nonce, or cipher.ciphertext).', 'error');
+        return;
+      }
+
+      // Set Loading UI
+      decryptBtn.disabled = true;
+      btnText.textContent = `Deriving Key (${iterations.toLocaleString()} rounds)...`;
+      btnSpinner.style.display = 'block';
+      setStatus(`Calculating PBKDF2 with ${iterations.toLocaleString()} iterations in RAM. This may take a few seconds...`, 'loading');
+
+      // Allow UI to render before heavy crypto
+      await new Promise(r => setTimeout(r, 50));
+
+      try {
+        const salt = decodeToUint8Array(saltStr);
+        const nonce = decodeToUint8Array(nonceStr);
+        let ciphertext = decodeToUint8Array(ciphertextStr);
+
+        // If tag is separate in JSON (some formats separate it), append tag to ciphertext for Web Crypto AES-GCM
+        if (cipher.tag) {
+          const tag = decodeToUint8Array(cipher.tag);
+          const combined = new Uint8Array(ciphertext.length + tag.length);
+          combined.set(ciphertext);
+          combined.set(tag, ciphertext.length);
+          ciphertext = combined;
+        }
+
+        // Determine hash algorithm for PBKDF2
+        let hashAlgo = "SHA-256";
+        if (kdf.name && kdf.name.includes("SHA-512")) {
+          hashAlgo = "SHA-512";
+        }
+
+        // Determine cipher algorithm
+        const cipherName = (cipher.name || "AES-GCM").toUpperCase();
+        let algoName = "AES-GCM";
+        if (cipherName.includes("CBC")) {
+          algoName = "AES-CBC";
+        } else if (cipherName.includes("CTR")) {
+          algoName = "AES-CTR";
+        }
+
+        // Determine key length
+        let keyLength = 256;
+        if (cipherName.includes("128")) keyLength = 128;
+        if (cipherName.includes("192")) keyLength = 192;
+
+        // 1. Import password as raw key
+        const enc = new TextEncoder();
+        const baseKey = await window.crypto.subtle.importKey(
+          "raw",
+          enc.encode(password),
+          { name: "PBKDF2" },
+          false,
+          ["deriveKey", "deriveBits"]
+        );
+
+        // 2. Derive AES Key
+        const derivedKey = await window.crypto.subtle.deriveKey(
+          {
+            name: "PBKDF2",
+            salt: salt,
+            iterations: iterations,
+            hash: hashAlgo
+          },
+          baseKey,
+          {
+            name: algoName,
+            length: keyLength
+          },
+          false,
+          ["decrypt"]
+        );
+
+        // 3. Decrypt Ciphertext
+        let decryptParams;
+        if (algoName === "AES-GCM") {
+          decryptParams = { name: "AES-GCM", iv: nonce };
+        } else if (algoName === "AES-CBC") {
+          decryptParams = { name: "AES-CBC", iv: nonce };
+        } else {
+          decryptParams = { name: "AES-CTR", counter: nonce, length: 64 };
+        }
+
+        const decryptedBuffer = await window.crypto.subtle.decrypt(
+          decryptParams,
+          derivedKey,
+          ciphertext
+        );
+
+        // 4. Decode plaintext
+        const dec = new TextDecoder();
+        const plainText = dec.decode(decryptedBuffer);
+
+        // Try formatting as JSON if it's JSON
+        let displayText = plainText;
+        try {
+          const parsed = JSON.parse(plainText);
+          displayText = JSON.stringify(parsed, null, 2);
+        } catch (_) {}
+
+        clearStatus();
+        resultOutput.textContent = displayText;
+        resultSection.style.display = 'block';
+
+      } catch (err) {
+        console.error(err);
+        setStatus('Decryption failed! Please ensure the password is correct.', 'error');
+      } finally {
+        decryptBtn.disabled = false;
+        btnText.textContent = 'Decrypt In-Memory';
+        btnSpinner.style.display = 'none';
+      }
+    });
+
+    // Copy to clipboard
+    copyBtn.addEventListener('click', async () => {
+      const text = resultOutput.textContent;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<span>✅ Copied!</span>';
+        setTimeout(() => {
+          copyBtn.innerHTML = originalText;
+        }, 2000);
+      } catch (err) {
+        alert('Could not auto-copy. Please select and copy manually.');
+      }
+    });
+
+    // Wipe memory / Destroy
+    destroyBtn.addEventListener('click', wipeAll);
+
+    function wipeAll() {
+      jsonInput.value = '';
+      passwordInput.value = '';
+      fileInput.value = '';
+      resultOutput.textContent = '';
+      resultSection.style.display = 'none';
+      clearStatus();
+    }
+
+    // Auto-wipe on unload
+    window.addEventListener('beforeunload', wipeAll);
+  </script>
+</body>
+</html>
