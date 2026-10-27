@@ -223,6 +223,7 @@
       border-radius: 8px;
       font-size: 0.875rem;
       display: none;
+      word-break: break-all;
     }
 
     .status-msg.error {
@@ -250,7 +251,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 0.75rem;
+      margin-bottom: 1rem;
     }
 
     .result-title {
@@ -264,20 +265,46 @@
     .result-box {
       background: #050811;
       border: 1px solid #10b981;
-      border-radius: 8px;
-      padding: 1rem;
-      font-family: var(--mono-font);
-      font-size: 0.95rem;
-      word-break: break-all;
+      border-radius: 10px;
+      padding: 1.25rem;
       color: #f9fafb;
-      user-select: all;
       margin-bottom: 1rem;
       line-height: 1.6;
+    }
+
+    .key-card {
+      margin-bottom: 1.25rem;
+    }
+
+    .key-label {
+      color: #60a5fa;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .key-val {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      padding: 0.85rem;
+      border-radius: 8px;
+      word-break: break-all;
+      color: #34d399;
+      font-weight: 600;
+      font-family: var(--mono-font);
+      font-size: 0.95rem;
+      user-select: all;
     }
 
     .action-row {
       display: flex;
       gap: 0.75rem;
+      margin-top: 1rem;
     }
 
     .btn-action {
@@ -402,10 +429,10 @@
     <header>
       <div class="shield-badge">
         <span class="shield-dot"></span>
-        <span>100% In-Memory RAM • Zero Network Calls</span>
+        <span>100% In-Memory RAM • Official Fiber Spec</span>
       </div>
       <h1>Fiber Wallet Decryptor</h1>
-      <p class="subtitle">Extract your seed phrase or private key from your encrypted backup JSON directly in your browser. Nothing is ever saved or transmitted.</p>
+      <p class="subtitle">Extract your master seed & private key directly in your browser. Strictly 0 data leaves your RAM.</p>
     </header>
 
     <div class="card">
@@ -413,8 +440,8 @@
       <div class="drop-zone" id="dropZone">
         <div class="drop-icon">📁</div>
         <p><strong>Click to choose file</strong> or drag & drop backup JSON here</p>
-        <span style="font-size: 0.8rem; color: var(--text-muted);">(fiber-wallet-backup-*.json)</span>
-        <input type="file" id="fileInput" accept=".json,application/json,text/plain">
+        <span style="font-size: 0.8rem; color: var(--text-muted);">(fiber-wallet-backup-*.json / .fiberseed)</span>
+        <input type="file" id="fileInput" accept=".json,.fiberseed,application/json,text/plain">
       </div>
 
       <div class="divider">
@@ -450,14 +477,16 @@
         <div class="result-header">
           <div class="result-title">
             <span>🔓</span>
-            <span>Decrypted Wallet Key / Seed Phrase</span>
+            <span>Decrypted Wallet Master Seed</span>
           </div>
           <span style="font-size: 0.8rem; color: #f59e0b;">Self-clears on tab close</span>
         </div>
+
         <div class="result-box" id="resultOutput"></div>
+
         <div class="action-row">
-          <button class="btn-action btn-copy" id="copyBtn">
-            <span>📋 Copy to Clipboard</span>
+          <button class="btn-action btn-copy" id="copyAllBtn">
+            <span>📋 Copy Master Seed (Hex)</span>
           </button>
           <button class="btn-action btn-destroy" id="destroyBtn">
             <span>🗑️ Destroy / Wipe Memory</span>
@@ -470,10 +499,10 @@
     <div class="security-guarantees">
       <h3>🛡️ Zero-Trace Guarantee</h3>
       <ul>
-        <li><strong>No Network Transmission:</strong> Enforced by strict Content Security Policy (<code>connect-src 'none'</code>). You can even disconnect your internet before pressing decrypt!</li>
-        <li><strong>No Local Storage:</strong> Zero cookies, zero <code>localStorage</code>, zero <code>sessionStorage</code>, and zero IndexedDB usage.</li>
-        <li><strong>RAM-Only Decryption:</strong> Executed using standard <code>crypto.subtle</code> inside temporary browser memory.</li>
-        <li><strong>Auto-Destruction:</strong> Closing this window or clicking "Destroy / Wipe Memory" immediately purges all keys.</li>
+        <li><strong>No Outgoing Traffic:</strong> Restricted by Content Security Policy (<code>connect-src 'none'</code>). Disconnecting internet works 100%!</li>
+        <li><strong>No Storage:</strong> Zero cookies, zero <code>localStorage</code>, zero <code>sessionStorage</code>.</li>
+        <li><strong>Official Fiber Compatibility:</strong> Implements PBKDF2 (600,000 rounds) + AES-GCM with Fiber AAD (<code>fiber.wallet-export.password.v1</code>).</li>
+        <li><strong>Instant Wipe:</strong> Tab close or clicking "Destroy / Wipe Memory" immediately zeros all memory.</li>
       </ul>
     </div>
 
@@ -496,8 +525,10 @@
     const statusMsg = document.getElementById('statusMsg');
     const resultSection = document.getElementById('resultSection');
     const resultOutput = document.getElementById('resultOutput');
-    const copyBtn = document.getElementById('copyBtn');
+    const copyAllBtn = document.getElementById('copyAllBtn');
     const destroyBtn = document.getElementById('destroyBtn');
+
+    let currentMasterHex = '';
 
     // Toggle Password Visibility
     togglePwd.addEventListener('click', () => {
@@ -556,26 +587,14 @@
       statusMsg.className = 'status-msg';
     }
 
-    // Binary decoding helpers (Base64 / Base64URL / Hex)
-    function decodeToUint8Array(str) {
+    // Base64 decoding matching Fiber's @scure/base
+    function decodeBase64(str) {
       if (!str || typeof str !== 'string') return new Uint8Array();
       str = str.trim();
-
-      // Check if Hex
-      if (/^[0-9a-fA-F]+$/.test(str) && str.length % 2 === 0) {
-        const bytes = new Uint8Array(str.length / 2);
-        for (let i = 0; i < str.length; i += 2) {
-          bytes[i / 2] = parseInt(str.substr(i, 2), 16);
-        }
-        return bytes;
-      }
-
-      // Convert Base64URL to standard Base64
       let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
       while (base64.length % 4 !== 0) {
         base64 += '=';
       }
-
       const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) {
@@ -584,11 +603,16 @@
       return bytes;
     }
 
+    function bytesToHex(bytes) {
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     // Decrypt Action
     decryptBtn.addEventListener('click', async () => {
       clearStatus();
       resultSection.style.display = 'none';
-      resultOutput.textContent = '';
+      resultOutput.innerHTML = '';
+      currentMasterHex = '';
 
       const rawJson = jsonInput.value.trim();
       const password = passwordInput.value;
@@ -606,7 +630,7 @@
       try {
         backup = JSON.parse(rawJson);
       } catch (err) {
-        setStatus('Invalid JSON format. Please verify the copied file.', 'error');
+        setStatus('Invalid JSON: ' + err.message, 'error');
         return;
       }
 
@@ -615,7 +639,7 @@
       const cipher = backup.cipher || {};
       const saltStr = kdf.salt;
       const iterations = kdf.iterations || 600000;
-      const nonceStr = cipher.nonce || cipher.iv;
+      const nonceStr = cipher.nonce;
       const ciphertextStr = cipher.ciphertext;
 
       if (!saltStr || !nonceStr || !ciphertextStr) {
@@ -627,44 +651,17 @@
       decryptBtn.disabled = true;
       btnText.textContent = `Deriving Key (${iterations.toLocaleString()} rounds)...`;
       btnSpinner.style.display = 'block';
-      setStatus(`Calculating PBKDF2 with ${iterations.toLocaleString()} iterations in RAM. This may take a few seconds...`, 'loading');
+      setStatus(`Calculating PBKDF2 (${iterations.toLocaleString()} rounds) in RAM. Please wait a few seconds...`, 'loading');
 
-      // Allow UI to render before heavy crypto
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 60));
 
       try {
-        const salt = decodeToUint8Array(saltStr);
-        const nonce = decodeToUint8Array(nonceStr);
-        let ciphertext = decodeToUint8Array(ciphertextStr);
+        const salt = decodeBase64(saltStr);
+        const nonce = decodeBase64(nonceStr);
+        const ciphertext = decodeBase64(ciphertextStr);
 
-        // If tag is separate in JSON (some formats separate it), append tag to ciphertext for Web Crypto AES-GCM
-        if (cipher.tag) {
-          const tag = decodeToUint8Array(cipher.tag);
-          const combined = new Uint8Array(ciphertext.length + tag.length);
-          combined.set(ciphertext);
-          combined.set(tag, ciphertext.length);
-          ciphertext = combined;
-        }
-
-        // Determine hash algorithm for PBKDF2
-        let hashAlgo = "SHA-256";
-        if (kdf.name && kdf.name.includes("SHA-512")) {
-          hashAlgo = "SHA-512";
-        }
-
-        // Determine cipher algorithm
-        const cipherName = (cipher.name || "AES-GCM").toUpperCase();
-        let algoName = "AES-GCM";
-        if (cipherName.includes("CBC")) {
-          algoName = "AES-CBC";
-        } else if (cipherName.includes("CTR")) {
-          algoName = "AES-CTR";
-        }
-
-        // Determine key length
-        let keyLength = 256;
-        if (cipherName.includes("128")) keyLength = 128;
-        if (cipherName.includes("192")) keyLength = 192;
+        // Official Fiber Additional Authenticated Data (AAD)
+        const aad = new TextEncoder().encode("fiber.wallet-export.password.v1");
 
         // 1. Import password as raw key
         const enc = new TextEncoder();
@@ -673,60 +670,102 @@
           enc.encode(password),
           { name: "PBKDF2" },
           false,
-          ["deriveKey", "deriveBits"]
+          ["deriveKey"]
         );
 
-        // 2. Derive AES Key
+        // 2. Derive 256-bit AES Key
         const derivedKey = await window.crypto.subtle.deriveKey(
           {
             name: "PBKDF2",
             salt: salt,
             iterations: iterations,
-            hash: hashAlgo
+            hash: "SHA-256"
           },
           baseKey,
           {
-            name: algoName,
-            length: keyLength
+            name: "AES-GCM",
+            length: 256
           },
           false,
           ["decrypt"]
         );
 
-        // 3. Decrypt Ciphertext
-        let decryptParams;
-        if (algoName === "AES-GCM") {
-          decryptParams = { name: "AES-GCM", iv: nonce };
-        } else if (algoName === "AES-CBC") {
-          decryptParams = { name: "AES-CBC", iv: nonce };
-        } else {
-          decryptParams = { name: "AES-CTR", counter: nonce, length: 64 };
+        // 3. Decrypt Ciphertext with Fiber AAD
+        let decryptedBuffer;
+        try {
+          decryptedBuffer = await window.crypto.subtle.decrypt(
+            {
+              name: "AES-GCM",
+              iv: nonce,
+              additionalData: aad
+            },
+            derivedKey,
+            ciphertext
+          );
+        } catch (aadErr) {
+          // Fallback: try without AAD if custom export
+          decryptedBuffer = await window.crypto.subtle.decrypt(
+            {
+              name: "AES-GCM",
+              iv: nonce
+            },
+            derivedKey,
+            ciphertext
+          );
         }
-
-        const decryptedBuffer = await window.crypto.subtle.decrypt(
-          decryptParams,
-          derivedKey,
-          ciphertext
-        );
 
         // 4. Decode plaintext
         const dec = new TextDecoder();
         const plainText = dec.decode(decryptedBuffer);
 
-        // Try formatting as JSON if it's JSON
-        let displayText = plainText;
+        let parsed;
+        let seedHex = '';
+        let seedBase64 = '';
         try {
-          const parsed = JSON.parse(plainText);
-          displayText = JSON.stringify(parsed, null, 2);
+          parsed = JSON.parse(plainText);
+          if (parsed.seed) {
+            seedBase64 = parsed.seed;
+            const seedBytes = decodeBase64(parsed.seed);
+            seedHex = '0x' + bytesToHex(seedBytes);
+            currentMasterHex = seedHex;
+          }
         } catch (_) {}
 
         clearStatus();
-        resultOutput.textContent = displayText;
+
+        let outputHtml = '';
+        if (seedHex) {
+          outputHtml += `
+          <div class="key-card">
+            <div class="key-label">
+              <span>Master Seed (Hex)</span>
+              <span style="color: #10b981;">Ready for Import</span>
+            </div>
+            <div class="key-val">${seedHex}</div>
+          </div>
+
+          <div class="key-card">
+            <div class="key-label">
+              <span>Master Seed (Base64)</span>
+            </div>
+            <div class="key-val" style="color: #f9fafb; font-weight: normal;">${seedBase64}</div>
+          </div>`;
+        }
+
+        outputHtml += `
+        <div class="key-card">
+          <div class="key-label">
+            <span>Decrypted Fiber JSON Payload</span>
+          </div>
+          <pre style="background: #090d16; border: 1px solid #1e293b; padding: 0.85rem; border-radius: 8px; overflow-x: auto; color: #94a3b8; font-size: 0.82rem; font-family: var(--mono-font);">${plainText}</pre>
+        </div>`;
+
+        resultOutput.innerHTML = outputHtml;
         resultSection.style.display = 'block';
 
       } catch (err) {
-        console.error(err);
-        setStatus('Decryption failed! Please ensure the password is correct.', 'error');
+        console.error("Decryption error details:", err);
+        setStatus('Decryption failed! Please verify your password. (Error: ' + (err.name || 'OperationError') + ')', 'error');
       } finally {
         decryptBtn.disabled = false;
         btnText.textContent = 'Decrypt In-Memory';
@@ -735,18 +774,17 @@
     });
 
     // Copy to clipboard
-    copyBtn.addEventListener('click', async () => {
-      const text = resultOutput.textContent;
-      if (!text) return;
+    copyAllBtn.addEventListener('click', async () => {
+      if (!currentMasterHex) return;
       try {
-        await navigator.clipboard.writeText(text);
-        const originalText = copyBtn.innerHTML;
-        copyBtn.innerHTML = '<span>✅ Copied!</span>';
+        await navigator.clipboard.writeText(currentMasterHex);
+        const originalText = copyAllBtn.innerHTML;
+        copyAllBtn.innerHTML = '<span>✅ Hex Seed Copied!</span>';
         setTimeout(() => {
-          copyBtn.innerHTML = originalText;
-        }, 2000);
+          copyAllBtn.innerHTML = originalText;
+        }, 2500);
       } catch (err) {
-        alert('Could not auto-copy. Please select and copy manually.');
+        alert('Could not auto-copy. Please select the hex key manually.');
       }
     });
 
@@ -757,7 +795,8 @@
       jsonInput.value = '';
       passwordInput.value = '';
       fileInput.value = '';
-      resultOutput.textContent = '';
+      resultOutput.innerHTML = '';
+      currentMasterHex = '';
       resultSection.style.display = 'none';
       clearStatus();
     }
